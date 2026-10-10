@@ -1,0 +1,14 @@
+name: telco-churn-training
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      max_iter: {type: int, default: 1000}
+      C: {type: float, default: 1.0}
+    command: >-
+      python modelling.py
+      --project-root .
+      --max-iter {max_iter}
+      --C {C}
