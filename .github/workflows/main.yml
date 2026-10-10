@@ -96,6 +96,7 @@ jobs:
           image_tag="${IMAGE_NAME,,}:${GITHUB_SHA}"
           mlflow models build-docker \
             --model-uri "runs:/${RUN_ID}/model" \
+            --env-manager local \
             --name "$image_tag"
           docker tag "$image_tag" "${IMAGE_NAME,,}:latest"
 
