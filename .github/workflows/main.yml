@@ -1,0 +1,124 @@
+name: MLflow CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12.7"
+  PROJECT_DIR: MLproject
+  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/telco-churn-mlflow
+
+jobs:
+  train-and-package:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: MLproject
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Check environment
+        run: |
+          python --version
+          python -m pip --version
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade "pip<=24.2"
+          python -m pip install \
+            "mlflow==2.19.0" \
+            "cloudpickle==3.1.2" \
+            "matplotlib==3.10.0" \
+            "numpy==2.5.3" \
+            "pandas==2.3.3" \
+            "scikit-learn==1.9.1" \
+            "scipy==1.18.1"
+
+      - name: Run MLflow project
+        id: mlflow-run
+        shell: bash
+        run: |
+          set -o pipefail
+          mlflow run . --env-manager=local 2>&1 | tee mlflow-run.log
+          run_id="$(grep -oE 'Run ID: [[:alnum:]]+' mlflow-run.log | tail -n 1 | awk '{print $3}')"
+          if [[ -z "$run_id" ]]; then
+            echo "Could not determine the MLflow run ID." >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest MLflow run ID
+        run: |
+          echo "MLflow run ID: ${{ steps.mlflow-run.outputs.run_id }}"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install \
+            "cloudpickle==3.1.2" \
+            "matplotlib==3.10.0" \
+            "numpy==2.5.3" \
+            "pandas==2.3.3" \
+            "scikit-learn==1.9.1" \
+            "scipy==1.18.1"
+
+      - name: Upload MLflow artifacts to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-artifacts-${{ github.sha }}
+          path: |
+            MLproject/mlruns
+            MLproject/telco_customer_churn_preprocessing/artifacts
+            MLproject/mlflow-run.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Build Docker model
+        if: github.event_name != 'pull_request'
+        env:
+          RUN_ID: ${{ steps.mlflow-run.outputs.run_id }}
+          IMAGE_NAME: ${{ env.DOCKER_IMAGE }}
+        run: |
+          image_tag="${IMAGE_NAME,,}:${GITHUB_SHA}"
+          mlflow models build-docker \
+            --model-uri "runs:/${RUN_ID}/model" \
+            --name "$image_tag"
+          docker tag "$image_tag" "${IMAGE_NAME,,}:latest"
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag Docker image
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_NAME: ${{ env.DOCKER_IMAGE }}
+        run: |
+          echo "Docker image tags:"
+          docker image ls "${IMAGE_NAME,,}" --format "{{.Repository}}:{{.Tag}}"
+
+      - name: Push Docker image
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_NAME: ${{ env.DOCKER_IMAGE }}
+        run: |
+          docker push "${IMAGE_NAME,,}:${GITHUB_SHA}"
+          docker push "${IMAGE_NAME,,}:latest"
