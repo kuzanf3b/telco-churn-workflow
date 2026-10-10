@@ -46,7 +46,7 @@ jobs:
             "matplotlib==3.10.0" \
             "numpy==2.5.3" \
             "pandas==2.3.3" \
-            "scikit-learn==1.9.1" \
+            "scikit-learn==1.5.2" \
             "scipy==1.18.1"
 
       - name: Run MLflow project
@@ -73,7 +73,7 @@ jobs:
             "matplotlib==3.10.0" \
             "numpy==2.5.3" \
             "pandas==2.3.3" \
-            "scikit-learn==1.9.1" \
+            "scikit-learn==1.5.2" \
             "scipy==1.18.1"
 
       - name: Upload MLflow artifacts to GitHub

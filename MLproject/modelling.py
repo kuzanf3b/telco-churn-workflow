@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import matplotlib
@@ -150,7 +151,9 @@ def train(args: argparse.Namespace) -> str:
     )
     tracking_uri = args.tracking_uri or str(project_root / "mlruns")
     mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_experiment(args.experiment_name)
+    project_run_id = os.environ.get("MLFLOW_RUN_ID")
+    if not project_run_id:
+        mlflow.set_experiment(args.experiment_name)
 
     x_train, y_train, x_test, y_test = load_preprocessed_data(train_path, test_path)
     model = LogisticRegression(
@@ -166,7 +169,10 @@ def train(args: argparse.Namespace) -> str:
         log_models=True,
         silent=False,
     )
-    with mlflow.start_run(run_name="logistic-regression-baseline") as run:
+    run_kwargs = {"run_name": "logistic-regression-baseline"}
+    if project_run_id:
+        run_kwargs["run_id"] = project_run_id
+    with mlflow.start_run(**run_kwargs) as run:
         model.fit(x_train, y_train)
         predictions = model.predict(x_test)
         probabilities = model.predict_proba(x_test)[:, 1]
