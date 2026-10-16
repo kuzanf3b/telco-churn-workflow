@@ -156,7 +156,3 @@ The exact serving command and port may vary depending on the MLflow model-servin
 ## Reproducibility
 
 The workflow pins the Python and package versions used for training and packaging. MLflow artifacts are uploaded for each workflow run, while Docker images are tagged with the source commit SHA so that a model image can be traced back to the code revision that produced it.
-
-## License
-
-No license has been specified for this repository yet.
